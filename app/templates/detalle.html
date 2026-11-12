@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+
+{% block title %}SIGECI — Detalle del Documento{% endblock %}
+
+{% block content %}
+<style>
+  /* ===== DETALLE: ficha digital, constancia y trazabilidad ===== */
+  .detalle-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 3px solid var(--color-acento);
+  }
+  .detalle-header .radicado {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--color-primario);
+    letter-spacing: 0.5px;
+  }
+  .badge-estado {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .estado--Recibido { background: #e3f2fd; color: #0d47a1; }
+  .estado--Asignado { background: #e8f5e9; color: #1b5e20; }
+  .estado--En_Tramite { background: #fff3e0; color: #e65100; }
+  .estado--Cerrado { background: #f3e5f5; color: #4a148c; }
+  .estado--Pendiente_de_Confirmación { background: #ffebee; color: #b71c1c; }
+
+  .seccion {
+    margin-top: 26px;
+  }
+  .seccion h2 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+  }
+
+  .ficha-digital {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px 20px;
+  }
+  .campo-dato {
+    padding: 10px 12px;
+    background: var(--color-fondo);
+    border: 1px solid var(--color-borde-claro);
+    border-radius: var(--radius);
+  }
+  .campo-dato .etiqueta {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--color-texto-suave);
+    margin: 0 0 4px;
+    font-weight: 700;
+  }
+  .campo-dato .valor {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-texto);
+    word-break: break-word;
+  }
+  .valor--urgente { color: #b00020; font-weight: 800; }
+  .valor--alta { color: #e65100; font-weight: 700; }
+  .valor--media { color: #f9a825; font-weight: 600; }
+  .valor--baja { color: #1b5e20; font-weight: 600; }
+
+  .constancia {
+    background: #fffbf0;
+    border: 1px solid var(--color-borde-claro);
+    border-left: 5px solid var(--color-acento);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-top: 10px;
+  }
+  .constancia .fila-constancia {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  .constancia .col-constancia { flex: 1 1 200px; }
+  .constancia .etiqueta-constancia {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--color-texto-suave);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+  .constancia .valor-constancia {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-texto);
+  }
+
+  table.trazabilidad {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-blanco);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--sombra);
+    margin-top: 8px;
+  }
+  table.trazabilidad th {
+    background: var(--color-primario);
+    color: #fff;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  table.trazabilidad td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-borde-claro);
+    font-size: 0.92rem;
+    vertical-align: middle;
+  }
+  table.trazabilidad tr:last-child td { border-bottom: none; }
+  table.trazabilidad tr:hover { background: #f4f6f8; }
+  td.vacía { text-align: center; color: var(--color-texto-suave); padding: 24px; }
+
+  .acciones {
+    margin-top: 26px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 640px) {
+    .detalle-header { flex-direction: column; align-items: flex-start; }
+    .detalle-header .radicado { font-size: 1.25rem; }
+    .constancia .fila-constancia { flex-direction: column; gap: 12px; }
+    table.trazabilidad { font-size: 0.8rem; }
+    table.trazabilidad th, table.trazabilidad td { padding: 6px 8px; }
+  }
+</style>
+
+<h1>SIGECI — Detalle del Documento</h1>
+<p>Ficha digital de registro individual con el historial de trazabilidad y la constancia de recepción del documento. La clasificación, prioridad y área son sugerencias del agente de IA validadas por un usuario autorizado.</p>
+
+<!-- Encabezado con radicado y estado actual -->
+<div class="detalle-header">
+  <div>
+    <h2>Radicado <span class="radicado">{{ documento.radicado }}</span></h2>
+    <span class="badge-estado estado--{{ documento.estado_actual|replace(' ', '_') }}">{{ documento.estado_actual }}</span>
+  </div>
+</div>
+
+{% if vencido %}
+<div class="alert"><strong>Alerta:</strong> la fecha límite de respuesta ({{ documento.fecha_limite_respuesta }}) ya venció y el documento aún no se encuentra cerrado.</div>
+{% endif %}
+
+<!-- Ficha digital de registro individual -->
+<div class="seccion">
+  <h2>Ficha digital de registro</h2>
+  <div class="ficha-digital">
+    <div class="campo-dato">
+      <span class="etiqueta">Radicado</span>
+      <span class="valor">{{ documento.radicado }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Fecha de ingreso</span>
+      <span class="valor">{{ documento.fecha_ingreso }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Hora de ingreso</span>
+      <span class="valor">{{ documento.hora_ingreso }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Canal de ingreso</span>
+      <span class="valor">{{ documento.canal_ingreso }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Remitente</span>
+      <span class="valor">{{ documento.remitente }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Asunto / Resumen</span>
+      <span class="valor">{{ documento.asunto }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Tipo de documento</span>
+      <span class="valor">{{ documento.tipo_documento }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Área asignada</span>
+      <span class="valor">{{ documento.area_asignada }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Responsable</span>
+      <span class="valor">{{ documento.responsable_atencion or documento.responsable_sugerido or "-" }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Prioridad</span>
+      <span class="valor valor--{{ documento.prioridad }}">{{ documento.prioridad }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Fecha límite de respuesta</span>
+      <span class="valor">{{ documento.fecha_limite_respuesta }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Ubicación física</span>
+      <span class="valor">{{ documento.ubicacion }}</span>
+    </div>
+  </div>
+  {% if documento.observaciones %}
+  <div class="campo-dato" style="grid-column: 1 / -1;">
+    <span class="etiqueta">Observaciones</span>
+    <span class="valor">{{ documento.observaciones }}</span>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Constancia de recepción -->
+<div class="seccion">
+  <h2>Constancia de recepción</h2>
+  {% set ns = namespace(recepcion=None) %}
+  {% for m in historial %}
+    {% if m.accion == "Recepción" and ns.recepcion is none %}
+      {% set ns.recepcion = m %}
+    {% endif %}
+  {% endfor %}
+  <div class="constancia">
+    <div class="fila-constancia">
+      <div class="col-constancia">
+        <span class="etiqueta-constancia">Fecha de recepción</span>
+        <span class="valor-constancia">{{ ns.recepcion.fecha if ns.recepcion else documento.fecha_ingreso }}</span>
+      </div>
+      <div class="col-constancia">
+        <span class="etiqueta-constancia">Hora de recepción</span>
+        <span class="valor-constancia">{{ ns.recepcion.hora if ns.recepcion else documento.hora_ingreso }}</span>
+      </div>
+      <div class="col-constancia">
+        <span class="etiqueta-constancia">Usuario que registró</span>
+        <span class="valor-constancia">{{ ns.recepcion.usuario if ns.recepcion else "-" }}</span>
+      </div>
+    </div>
+    <p class="nota" style="margin-top:10px;">Esta constancia certifica la recepción del documento de acuerdo con las reglas de negocio de SIGECI (R6). Cada movimiento registra fecha, hora y usuario ejecutor.</p>
+  </div>
+</div>
+
+<!-- Historial de trazabilidad -->
+<div class="seccion">
+  <h2>Historial de trazabilidad</h2>
+  <p>Movimientos, estados, responsables y fechas de cada acción realizada sobre el documento.</p>
+  <table class="trazabilidad">
+    <thead>
+      <tr>
+        <th>Fecha</th>
+        <th>Hora</th>
+        <th>Acción</th>
+        <th>Usuario</th>
+        <th>Estado anterior</th>
+        <th>Estado nuevo</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for m in historial %}
+      <tr>
+        <td>{{ m.fecha }}</td>
+        <td>{{ m.hora }}</td>
+        <td>{{ m.accion }}</td>
+        <td>{{ m.usuario }}</td>
+        <td>{{ m.estado_anterior or "-" }}</td>
+        <td>{{ m.estado_nuevo or "-" }}</td>
+      </tr>
+    {% else %}
+      <tr><td class="vacía" colspan="6">Sin movimientos registrados.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="acciones">
+  <a class="btn btn-primario" href="/resultados">Volver a resultados</a>
+  <a class="btn" href="/descargar/{{ documento.radicado }}">Descargar constancia</a>
+</div>
+{% endblock %}

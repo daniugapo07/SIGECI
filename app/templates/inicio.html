@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}SIGECI — Registro de Correspondencia{% endblock %}
+
+{% block content %}
+<h2>Registro de Correspondencia</h2>
+<p>Complete los datos del documento recibido. El radicado se genera automáticamente con formato <strong>ADEP-AAAA-XXXX</strong>. La clasificación, prioridad y área son <strong>sugeridas por el agente de IA</strong> y validadas por un usuario autorizado (Unidad Secretarial / Recepción).</p>
+
+<div id="msg-registro"></div>
+
+<form id="form-registro" method="post" action="/registrar">
+  <div class="fila">
+    <div class="col">
+      <label class="etiqueta">Canal de ingreso <span class="requerido">*</span></label>
+      <select name="canal_ingreso" required>
+        <option value="">Seleccione un canal</option>
+        <option value="WhatsApp Corporativo">WhatsApp Corporativo</option>
+        <option value="Correo Institucional">Correo Institucional</option>
+        <option value="Recepción Física">Recepción Física</option>
+      </select>
+    </div>
+    <div class="col">
+      <label class="etiqueta">Fecha de ingreso <span class="requerido">*</span></label>
+      <input type="date" name="fecha_ingreso" required>
+    </div>
+    <div class="col">
+      <label class="etiqueta">Hora de ingreso <span class="requerido">*</span></label>
+      <input type="time" name="hora_ingreso" required>
+    </div>
+  </div>
+
+  <label class="etiqueta">Remitente (Nombre / Entidad) <span class="requerido">*</span></label>
+  <input type="text" name="remitente" placeholder="Ej. MEP - Dirección de Recursos Humanos" required>
+
+  <label class="etiqueta">Asunto / Resumen del documento <span class="requerido">*</span></label>
+  <textarea name="asunto" placeholder="Breve descripción del contenido del documento..." required></textarea>
+
+  <label class="etiqueta">Texto extraído (OCR) — opcional</label>
+  <textarea name="texto_extraido" placeholder="Resultado del OCR del documento (si aplica). El agente de IA usará este texto para sugerir clasificación, prioridad y área."></textarea>
+
+  <label class="etiqueta">Usuario que registra</label>
+  <input type="text" name="usuario" value="Unidad Secretarial">
+
+  <button type="submit">Registrar documento</button>
+</form>
+
+<p class="nota">Canales válidos y SLA de recepción: WhatsApp Corporativo (2 hrs), Correo Institucional (4 hrs), Recepción Física (1 hr). Todo movimiento registra fecha, hora y usuario ejecutor (constancia de recepción).</p>
+
+<div class="acciones">
+  <a class="btn" href="/resultados">Ver resultados</a>
+  <button type="button" class="btn btn-primario" onclick="document.getElementById('form-registro').reset(); return false;">Limpiar formulario</button>
+  <a class="btn" href="/">Volver al inicio</a>
+</div>
+
+<script>
+  (function () {
+    var hoy = new Date();
+    var fechaInput = document.querySelector("input[name='fecha_ingreso']");
+    var horaInput = document.querySelector("input[name='hora_ingreso']");
+
+    function llenarFechaHora() {
+      if (fechaInput && !fechaInput.value) {
+        fechaInput.value =
+          hoy.getFullYear() + '-' +
+          String(hoy.getMonth() + 1).padStart(2, '0') + '-' +
+          String(hoy.getDate()).padStart(2, '0');
+      }
+      if (horaInput && !horaInput.value) {
+        horaInput.value =
+          String(hoy.getHours()).padStart(2, '0') + ':' +
+          String(hoy.getMinutes()).padStart(2, '0');
+      }
+    }
+    llenarFechaHora();
+
+    var form = document.getElementById('form-registro');
+    var msg = document.getElementById('msg-registro');
+    if (!form) return;
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      btn.textContent = 'Registrando...';
+      msg.innerHTML = '';
+
+      var formData = new FormData(form);
+      fetch('/registrar', { method: 'POST', body: formData })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          btn.disabled = false;
+          btn.textContent = 'Registrar documento';
+          if (data.mensaje) {
+            msg.innerHTML =
+              '<div class="msg-ok"><strong>Registrado correctamente.</strong><br>' +
+              'Radicado: <strong>' + data.radicado + '</strong><br>' +
+              'Estado: ' + data.estado_actual +
+              ' | Prioridad: ' + data.prioridad +
+              ' | Área asignada: ' + data.area_asignada + '</div>';
+            form.reset();
+            llenarFechaHora();
+          } else if (data.error) {
+            msg.innerHTML = '<div class="alert"><strong>Error:</strong> ' + data.error + '</div>';
+          }
+        })
+        .catch(function () {
+          btn.disabled = false;
+          btn.textContent = 'Registrar documento';
+          msg.innerHTML = '<div class="alert">No se pudo completar el registro. Verifique su conexión e intente nuevamente.</div>';
+        });
+    });
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block title %}SIGECI — Resultados y Seguimiento de Correspondencia{% endblock %}
+
+{% block content %}
+<style>
+  /* ===== RESULTADOS: tablero de contadores y tabla filtrada ===== */
+  .tablero-contadores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin: 16px 0 24px;
+  }
+  .contador {
+    background: var(--color-primario);
+    color: var(--color-blanco);
+    padding: 22px 16px;
+    border-radius: var(--radius);
+    text-align: center;
+    box-shadow: var(--sombra);
+  }
+  .contador .numero {
+    font-size: 2.6rem;
+    font-weight: 800;
+    display: block;
+    line-height: 1;
+  }
+  .contador .etiqueta {
+    font-size: 0.82rem;
+    opacity: 0.95;
+    margin-top: 7px;
+    display: block;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .contador--pendientes { background: #b00020; }
+  .contador--en_tramite { background: var(--color-acento); color: #1f3a5f; }
+  .contador--cerrados { background: #2e7d32; }
+  .contador--recibidos { background: #1f3a5f; }
+  .contador--asignados { background: #5c4aad; }
+
+  .filtros-tabla {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+    align-items: flex-end;
+  }
+  .filtro-col {
+    padding: 8px 10px;
+    border: 1px solid var(--color-borde);
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 125px;
+  }
+  .filtro-col:focus {
+    border-color: var(--color-primario);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(31, 58, 95, 0.12);
+  }
+
+  table.resultados {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--color-blanco);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: var(--sombra);
+    margin-top: 8px;
+  }
+  table.resultados th {
+    background: var(--color-primario);
+    color: #fff;
+    text-align: left;
+    padding: 10px 12px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  table.resultados td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--color-borde-claro);
+    font-size: 0.92rem;
+    vertical-align: middle;
+  }
+  table.resultados tr:last-child td { border-bottom: none; }
+  table.resultados tr:hover { background: #f4f6f8; }
+
+  .estado-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .estado--Recibido { background: #e3f2fd; color: #0d47a1; }
+  .estado--Asignado { background: #e8f5e9; color: #1b5e20; }
+  .estado--En_Tramite { background: #fff3e0; color: #e65100; }
+  .estado--Cerrado { background: #f3e5f5; color: #4a148c; }
+  .estado--Pendiente_de_Confirmación { background: #ffebee; color: #b71c1c; }
+
+  .prioridad--Urgente { color: #b00020; font-weight: 700; }
+  .prioridad--Alta { color: #e65100; font-weight: 700; }
+  .prioridad--Media { color: #f9a825; font-weight: 600; }
+  .prioridad--Baja { color: #1b5e20; font-weight: 600; }
+
+  td.vacía { text-align: center; color: var(--color-texto-suave); padding: 24px; }
+
+  .acciones { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+
+  @media (max-width: 640px) {
+    table.resultados { font-size: 0.8rem; }
+    table.resultados th, table.resultados td { padding: 6px 8px; }
+    .filtros-tabla { flex-direction: column; align-items: stretch; }
+    .filtro-col { min-width: auto; width: 100%; }
+    .tablero-contadores { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<h1>SIGECI — Resultados y Seguimiento de Correspondencia</h1>
+<p>Tablero de control de la correspondencia institucional de ADEP. Los contadores reflejan el estado actual de cada documento registrado. Use los campos de filtro de cada columna para buscar en la tabla sin recargar la página.</p>
+
+<div class="tablero-contadores">
+  <div class="contador contador--total">
+    <span class="numero">{{ contadores.total }}</span>
+    <span class="etiqueta">Total de documentos</span>
+  </div>
+  <div class="contador contador--pendientes">
+    <span class="numero">{{ contadores.pendientes }}</span>
+    <span class="etiqueta">Pendientes de confirmación</span>
+  </div>
+  <div class="contador contador--en_tramite">
+    <span class="numero">{{ contadores.en_tramite }}</span>
+    <span class="etiqueta">En trámite</span>
+  </div>
+  <div class="contador contador--cerrados">
+    <span class="numero">{{ contadores.cerrados }}</span>
+    <span class="etiqueta">Cerrados</span>
+  </div>
+  <div class="contador contador--recibidos">
+    <span class="numero">{{ contadores.recibidos }}</span>
+    <span class="etiqueta">Recibidos</span>
+  </div>
+  <div class="contador contador--asignados">
+    <span class="numero">{{ contadores.asignados }}</span>
+    <span class="etiqueta">Asignados</span>
+  </div>
+</div>
+
+<div class="filtros-tabla" id="filtros-tabla">
+  <input type="text" class="filtro-col" data-columna="0" placeholder="Filtrar Radicado...">
+  <input type="text" class="filtro-col" data-columna="1" placeholder="Filtrar Fecha...">
+  <input type="text" class="filtro-col" data-columna="2" placeholder="Filtrar Canal...">
+  <input type="text" class="filtro-col" data-columna="3" placeholder="Filtrar Remitente...">
+  <input type="text" class="filtro-col" data-columna="4" placeholder="Filtrar Tipo...">
+  <input type="text" class="filtro-col" data-columna="5" placeholder="Filtrar Área...">
+  <input type="text" class="filtro-col" data-columna="6" placeholder="Filtrar Responsable...">
+  <input type="text" class="filtro-col" data-columna="7" placeholder="Filtrar Prioridad...">
+  <input type="text" class="filtro-col" data-columna="8" placeholder="Filtrar Estado...">
+  <input type="text" class="filtro-col" data-columna="9" placeholder="Filtrar Fecha Límite...">
+  <button type="button" class="btn btn-primario" id="limpiar-filtros">Limpiar filtros</button>
+</div>
+
+<table class="resultados" id="tabla-resultados">
+  <thead>
+    <tr>
+      <th>Radicado</th>
+      <th>Fecha Ingreso</th>
+      <th>Canal</th>
+      <th>Remitente</th>
+      <th>Tipo Documento</th>
+      <th>Área Asignada</th>
+      <th>Responsable</th>
+      <th>Prioridad</th>
+      <th>Estado</th>
+      <th>Fecha Límite</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for d in docs %}
+    <tr>
+      <td><a href="/detalle/{{ d.radicado }}">{{ d.radicado }}</a></td>
+      <td>{{ d.fecha_ingreso }}</td>
+      <td>{{ d.canal_ingreso }}</td>
+      <td>{{ d.remitente }}</td>
+      <td>{{ d.tipo_documento }}</td>
+      <td>{{ d.area_asignada }}</td>
+      <td>{{ d.responsable_sugerido or d.responsable_atencion or "-" }}</td>
+      <td class="prioridad--{{ d.prioridad }}">{{ d.prioridad }}</td>
+      <td><span class="estado--{{ d.estado_actual|replace(' ', '_') }} estado-badge">{{ d.estado_actual }}</span></td>
+      <td>{{ d.fecha_limite_respuesta }}</td>
+    </tr>
+  {% else %}
+    <tr><td class="vacía" colspan="10">No hay documentos registrados.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<p class="nota">Estados válidos: Recibido, Asignado, En Tramite, Cerrado, Pendiente de Confirmación. Haga clic en un radicado para ver su ficha de detalle con el historial de trazabilidad.</p>
+
+<div class="acciones">
+  <a class="btn btn-primario" href="/registrar">Registrar nuevo documento</a>
+  <a class="btn" href="/">Volver al inicio</a>
+</div>
+
+<script>
+  (function () {
+    var tabla = document.getElementById('tabla-resultados');
+    var tbody = tabla && tabla.querySelector('tbody');
+    var filtros = document.querySelectorAll('#filtros-tabla .filtro-col');
+    var btnLimpiar = document.getElementById('limpiar-filtros');
+
+    if (!tbody || filtros.length === 0) return;
+
+    function filtrar() {
+      var termos = [];
+      filtros.forEach(function (input) {
+        termos[input.dataset.columna] = input.value.toLowerCase().trim();
+      });
+
+      tbody.querySelectorAll('tr').forEach(function (fila) {
+        var celdas = fila.querySelectorAll('td');
+        var mostrar = true;
+        celdas.forEach(function (celda, idx) {
+          if (termos[idx] && celda.textContent.toLowerCase().indexOf(termos[idx]) === -1) {
+            mostrar = false;
+          }
+        });
+        fila.style.display = mostrar ? '' : 'none';
+      });
+    }
+
+    filtros.forEach(function (input) {
+      input.addEventListener('input', filtrar);
+    });
+
+    btnLimpiar.addEventListener('click', function () {
+      filtros.forEach(function (input) {
+        input.value = '';
+      });
+      filtrar();
+    });
+  })();
+</script>
+{% endblock %}
