@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}SIGECI — Inicio de sesión{% endblock %}
+
+{% block content %}
+  <div class="contenedor" style="max-width: 420px; margin: 48px auto;">
+    <h2 style="text-align: center; margin-bottom: 24px;">Iniciar sesión</h2>
+
+    {% if error %}
+      <div class="alert" style="text-align: center;">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('main.login') }}">
+      <div class="etiqueta">Usuario</div>
+      <input type="text" name="usuario" required autofocus>
+
+      <div class="etiqueta">Contraseña</div>
+      <input type="password" name="clave" required>
+
+      <button type="submit">Entrar</button>
+    </form>
+
+    <div class="nota" style="text-align: center; margin-top: 18px;">
+      Acceso restringido al personal autorizado de la Unidad Secretarial.
+    </div>
+  </div>
+{% endblock %}

@@ -4,7 +4,7 @@ import json
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, jsonify, make_response, render_template, request
+from flask import Blueprint, jsonify, make_response, redirect, render_template, request, session, url_for
 
 from app.services.agente_ia import analizar_documento
 from app.services.leer_insumos import leer_insumos, RUTA_INSUMOS
@@ -31,6 +31,39 @@ from app.services.reglas_negocio import (
 )
 
 main_bp = Blueprint("main", __name__)
+
+# Rutas que no requieren autenticación
+_RUTAS_LIBRES = {"main.login", "main.salir", "main.health"}
+
+
+@main_bp.before_request
+def _requerir_autenticacion():
+    """Regla de acceso: todas las rutas exigen sesión activa, excepto login, salir y health."""
+    if request.endpoint not in _RUTAS_LIBRES and not session.get("usuario"):
+        return redirect(url_for("main.login"))
+
+
+@main_bp.route("/login", methods=["GET", "POST"])
+def login():
+    """Pantalla de inicio de sesión con usuario y contraseña desde variables de entorno."""
+    error = None
+    if request.method == "POST":
+        usuario = (request.form.get("usuario") or "").strip()
+        clave = (request.form.get("clave") or "").strip()
+        usuario_valido = os.environ.get("APP_USUARIO", "")
+        clave_valida = os.environ.get("APP_CLAVE", "")
+        if usuario == usuario_valido and clave == clave_valida:
+            session["usuario"] = usuario
+            return redirect(url_for("main.index"))
+        error = "Usuario o contraseña incorrectos"
+    return render_template("login.html", error=error)
+
+
+@main_bp.route("/salir")
+def salir():
+    """Cierra la sesión del usuario y redirige al login."""
+    session.pop("usuario", None)
+    return redirect(url_for("main.login"))
 
 
 @main_bp.route("/")
