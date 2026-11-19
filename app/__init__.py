@@ -5,6 +5,7 @@ según el patrón Application Factory de Flask.
 """
 
 import os
+from werkzeug.utils import secure_filename
 
 from flask import Flask, jsonify
 from dotenv import load_dotenv
@@ -21,11 +22,27 @@ def create_app():
     """
     app = Flask(__name__, instance_relative_config=True)
 
+    # Carpeta donde se almacenan los documentos adjuntos a los registros
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "archivos")
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+    # Extensiones permitidas para adjuntos de correspondencia
+    ALLOWED_EXTENSIONS = {
+        "pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp",
+        "doc", "docx", "xls", "xlsx", "txt",
+    }
+
+    # Límite de subida: 16 MB por archivo
+    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+
     app.config.from_mapping(
         SECRET_KEY=os.environ.get("SECRET_KEY", "dev-cambiar-en-produccion"),
         APP_NAME=os.environ.get("APP_NAME", "SIGECI"),
         ENV=os.environ.get("FLASK_ENV", "development"),
         DEBUG=os.environ.get("FLASK_DEBUG", "1") == "1",
+        UPLOAD_FOLDER=UPLOAD_FOLDER,
+        ALLOWED_EXTENSIONS=ALLOWED_EXTENSIONS,
+        MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,
     )
 
     # Registrar blueprints de controladores

@@ -222,6 +222,39 @@
   {% endif %}
 </div>
 
+<!-- Documento adjunto -->
+{% if documento.archivo_adjunto %}
+<div class="seccion">
+  <h2>Documento Adjunto</h2>
+  <div class="ficha-digital">
+    <div class="campo-dato">
+      <span class="etiqueta">Nombre original</span>
+      <span class="valor">{{ documento.archivo_adjunto.nombre_original }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Extensión</span>
+      <span class="valor">{{ documento.archivo_adjunto.extension }}</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Tamaño</span>
+      <span class="valor">{{ documento.archivo_adjunto.tamaño }} bytes</span>
+    </div>
+    <div class="campo-dato">
+      <span class="etiqueta">Estado de validación</span>
+      <span class="valor {% if documento.archivo_validado %}valor--alta{% endif %}">
+        {% if documento.archivo_validado %}Confirmado{% else %}Pendiente de confirmación{% endif %}
+      </span>
+    </div>
+  </div>
+  <div class="acciones" style="margin-top: 12px;">
+    <a class="btn btn-primario" href="{{ url_for('main.descargar_adjunto', radicado=documento.radicado) }}">Descargar adjunto</a>
+    {% if not documento.archivo_validado %}
+      <a class="btn" href="{{ url_for('main.validar_documento', radicado=documento.radicado) }}">Validar documento</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Constancia de recepción -->
 <div class="seccion">
   <h2>Constancia de recepción</h2>

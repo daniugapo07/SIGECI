@@ -4,7 +4,19 @@ import json
 import os
 from datetime import date, datetime, timedelta
 
-from flask import Blueprint, jsonify, make_response, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    session,
+    url_for,
+)
+from werkzeug.utils import secure_filename
 
 from app.services.agente_ia import analizar_documento
 from app.services.leer_insumos import leer_insumos, RUTA_INSUMOS
@@ -404,13 +416,54 @@ def registrar_form():
     return render_template("inicio.html")
 
 
+def _nombre_archivo_seguro(nombre_original):
+    """Devuelve un nombre de archivo seguro para almacenamiento."""
+    return secure_filename(nombre_original)
+
+
+def _extensiones_permitidas():
+    """Devuelve el conjunto de extensiones permitidas desde la configuración."""
+    return current_app.config.get("ALLOWED_EXTENSIONS", set())
+
+
+def _guardar_archivo_adjunto(file_storage, radicado):
+    """Guarda un archivo adjunto vinculado a un radicado.
+
+    Devuelve un diccionario con metadatos del archivo o None si no hay archivo.
+    """
+    if not file_storage or file_storage.filename == "":
+        return None
+
+    nombre_original = file_storage.filename
+    nombre_seguro = _nombre_archivo_seguro(nombre_original)
+    extension = nombre_seguro.rsplit(".", 1)[-1].lower() if "." in nombre_seguro else ""
+
+    if extension not in _extensiones_permitidas():
+        return {"error": "extensión_no_permitida", "nombre": nombre_original}
+
+    nombre_archivo = f"{radicado}_adjunto.{extension}"
+    ruta_archivo = os.path.join(app.config["UPLOAD_FOLDER"], nombre_archivo)
+    file_storage.save(ruta_archivo)
+
+    return {
+        "nombre_archivo": nombre_archivo,
+        "nombre_original": nombre_original,
+        "extension": extension,
+        "ruta": ruta_archivo,
+        "tamaño": os.path.getsize(ruta_archivo),
+    }
+
+
 @main_bp.route("/registrar", methods=["POST"])
 def registrar_procesar():
-    """Procesa el registro: genera radicado, aplica R1-R6, llama al agente IA y guarda."""
-    if request.is_json:
-        data = request.get_json(silent=True) or {}
-    else:
-        data = request.form.to_dict()
+    """Procesa el registro: genera radicado, aplica R1-R6.
+
+    Si se adjunta un archivo, lo guarda temporalmente y redirige a la
+    validación manual antes de llamar al agente de IA. Si no hay archivo,
+    continúa con el flujo normal (IA + guardado definitivo).
+    """
+    data = request.form.to_dict()
+    archivo = request.files.get("archivo_adjunto")
 
     canal_ingreso = (data.get("canal_ingreso") or "").strip()
     fecha_ingreso = (data.get("fecha_ingreso") or "").strip() or date.today().strftime("%Y-%m-%d")
@@ -430,7 +483,69 @@ def registrar_procesar():
     # R1: generar radicado único y consecutivo ADEP-AAAA-XXXX.
     radicado = generar_radicado()
 
-    # Llamar al agente de IA (misma lógica de POST /agente/analizar).
+    # Procesar archivo adjunto si existe.
+    archivo_info = _guardar_archivo_adjunto(archivo, radicado)
+    if isinstance(archivo_info, dict) and archivo_info.get("error") == "extensión_no_permitida":
+        return jsonify({
+            "error": f"Extensión no permitida para '{archivo_info['nombre']}'. "
+                     f"Extensiones válidas: {sorted(_extensiones_permitidas())}",
+        }), 400
+
+    hay_archivo = archivo_info is not None
+
+    # Si hay archivo, se requiere validación manual antes de usar la IA.
+    if hay_archivo:
+        # Estado pendiente de validación del documento adjunto.
+        estado_actual = "Pendiente Validación Documento"
+
+        documento = {
+            "radicado": radicado,
+            "fecha_ingreso": fecha_ingreso,
+            "hora_ingreso": hora_ingreso,
+            "canal_ingreso": canal_ingreso,
+            "remitente": remitente,
+            "asunto": asunto,
+            "tipo_documento": "Pendiente",
+            "area_asignada": "",
+            "responsable_sugerido": "",
+            "responsable_atencion": "",
+            "prioridad": "Pendiente",
+            "estado_actual": estado_actual,
+            "fecha_limite_respuesta": "",
+            "observaciones": "Esperando validación manual del documento adjunto.",
+            "texto_extraido": texto_extraido,
+            "ubicacion": "Recepción / Ventanilla Única",
+            "historial": [],
+            "fuente": "registro",
+            "archivo_adjunto": archivo_info,
+            "archivo_validado": False,
+            "ia_forzada": False,
+            "ia_disponible": False,
+        }
+
+        # R6: constancia de recepción (fecha, hora, usuario ejecutor).
+        movimiento = registrar_movimiento(
+            documento_id=radicado,
+            accion="Recepción",
+            usuario=usuario,
+            fecha=fecha_ingreso,
+            hora=hora_ingreso,
+        )
+        documento["historial"].append(movimiento)
+
+        DOCUMENTOS[radicado] = documento
+        _guardar_documentos()
+
+        return jsonify({
+            "mensaje": "Documento registrado. Pendiente de validación del archivo adjunto.",
+            "radicado": radicado,
+            "estado_actual": estado_actual,
+            "hay_archivo": True,
+            "archivo_adjunto": archivo_info,
+            "redirect": url_for("main.validar_documento", radicado=radicado),
+        }), 201
+
+    # Sin archivo: flujo normal con agente de IA.
     datos_insumos = leer_insumos(RUTA_INSUMOS)
     agente = analizar_documento(
         texto_extraido=texto_extraido,
@@ -495,6 +610,8 @@ def registrar_procesar():
         "ubicacion": "Recepción / Ventanilla Única",
         "historial": [],
         "fuente": "registro",
+        "archivo_adjunto": None,
+        "archivo_validado": False,
         "ia_forzada": forzada,
         "ia_disponible": ia_disponible,
     }
@@ -598,3 +715,189 @@ def descargar_registro(radicado):
     respuesta.headers["Content-Disposition"] = f'attachment; filename="constancia_{radicado}.txt"'
     respuesta.headers["Content-Type"] = "text/plain; charset=utf-8"
     return respuesta
+
+
+# ---------------------------------------------------------------------------
+# Rutas de validación manual de documentos adjuntos (Entrega nueva)
+# ---------------------------------------------------------------------------
+
+@main_bp.route("/validar-documento/<radicado>")
+def validar_documento(radicado):
+    """Muestra la vista previa del documento adjunto para validación manual.
+
+    El usuario debe confirmar que el archivo es correcto antes de continuar
+    con el procesamiento automático por IA.
+    """
+    documento = DOCUMENTOS.get(radicado)
+    if not documento:
+        return jsonify({"error": f"Documento {radicado} no encontrado."}), 404
+
+    archivo = documento.get("archivo_adjunto")
+    if not archivo:
+        return jsonify({"error": f"El documento {radicado} no tiene archivo adjunto."}), 400
+
+    nombre_archivo = archivo["nombre_archivo"]
+    extension = archivo.get("extension", "").lower()
+
+    # Determinar si se puede mostrar vista previa directa en el navegador
+    extensiones_preview = {"pdf", "png", "jpg", "jpeg", "gif", "bmp", "webp"}
+    puede_preview = extension in extensiones_preview
+
+    return render_template(
+        "validar_documento.html",
+        documento=documento,
+        archivo=archivo,
+        puede_preview=puede_preview,
+    )
+
+
+@main_bp.route("/validar-documento/<radicado>/confirmar", methods=["POST"])
+def confirmar_documento(radicado):
+    """Confirma el documento adjunto y continúa con el procesamiento por IA."""
+    documento = DOCUMENTOS.get(radicado)
+    if not documento:
+        return jsonify({"error": f"Documento {radicado} no encontrado."}), 404
+
+    archivo = documento.get("archivo_adjunto")
+    if not archivo:
+        return jsonify({"error": "No hay archivo adjunto para confirmar."}), 400
+
+    usuario = request.form.get("usuario") or "Sistema"
+
+    # Marcar el archivo como validado.
+    documento["archivo_validado"] = True
+    documento["archivo_adjunto"]["validado_por"] = usuario
+    documento["archivo_adjunto"]["fecha_validacion"] = date.today().strftime("%Y-%m-%d")
+    documento["archivo_adjunto"]["hora_validacion"] = datetime.now().strftime("%H:%M")
+
+    # Registrar movimiento de validación.
+    movimiento = registrar_movimiento(
+        documento_id=radicado,
+        accion="Validación de documento adjunto",
+        usuario=usuario,
+        fecha=date.today().strftime("%Y-%m-%d"),
+        hora=datetime.now().strftime("%H:%M"),
+    )
+    documento["historial"].append(movimiento)
+
+    # Ahora continuar con el procesamiento normal (IA) ya que el documento está confirmado.
+    datos_insumos = leer_insumos(RUTA_INSUMOS)
+    agente = analizar_documento(
+        texto_extraido=documento.get("texto_extraido", ""),
+        canal_ingreso=documento.get("canal_ingreso", ""),
+        fecha_ingreso=documento.get("fecha_ingreso", ""),
+        hora_ingreso=documento.get("hora_ingreso", ""),
+        directorio_areas=datos_insumos["directorio_areas"],
+        tipologia_documental=datos_insumos["tipologia_documental"],
+    )
+
+    ia_disponible = "error" not in agente
+    if ia_disponible:
+        tipo_documento = agente.get("tipo_documento") or "Otro"
+        prioridad = agente.get("prioridad") or "Media"
+        area_asignada = agente.get("area_asignada") or ""
+        responsable_sugerido = agente.get("responsable_sugerido") or ""
+        fecha_limite = agente.get("fecha_limite_respuesta") or ""
+        observaciones_ia = agente.get("observaciones") or ""
+    else:
+        tipo_documento = "Otro"
+        prioridad = "Media"
+        area_asignada = "Unidad Secretarial y Recepción"
+        responsable_sugerido = "Unidad Secretarial"
+        fecha_limite = ""
+        observaciones_ia = f"IA no disponible: {agente.get('error', '')}."
+
+    # R5: prioridad forzada para asuntos legales / plazos judiciales.
+    legal = forzar_prioridad_legal(tipo_documento, documento.get("asunto", ""))
+    forzada = False
+    if legal["forzada"]:
+        prioridad = legal["prioridad"]
+        area_asignada = legal["area"]
+        forzada = True
+        observaciones_ia = (
+            (observaciones_ia + " | ") if observaciones_ia else ""
+        ) + "Regla R5 aplicada: prioridad Urgente y área Asesoría Legal y Jurídica."
+
+    # Validar prioridad (R4).
+    if not validar_prioridad(prioridad):
+        prioridad = "Media"
+    fecha_limite = fecha_limite or _calcular_fecha_limite(
+        documento.get("fecha_ingreso", ""), prioridad
+    )
+
+    # Actualizar el documento con los resultados de la IA.
+    documento["tipo_documento"] = tipo_documento
+    documento["area_asignada"] = area_asignada
+    documento["responsable_sugerido"] = responsable_sugerido
+    documento["prioridad"] = prioridad
+    documento["estado_actual"] = "Recibido"
+    documento["fecha_limite_respuesta"] = fecha_limite
+    documento["observaciones"] = observaciones_ia
+    documento["ia_forzada"] = forzada
+    documento["ia_disponible"] = ia_disponible
+
+    _guardar_documentos()
+
+    return redirect(url_for("main.detalle_registro", radicado=radicado))
+
+
+@main_bp.route("/validar-documento/<radicado>/reemplazar", methods=["POST"])
+def reemplazar_documento(radicado):
+    """Permite reemplazar el archivo adjunto y volver a la validación."""
+    documento = DOCUMENTOS.get(radicado)
+    if not documento:
+        return jsonify({"error": f"Documento {radicado} no encontrado."}), 404
+
+    archivo = request.files.get("archivo_adjunto")
+    if not archivo or archivo.filename == "":
+        return jsonify({"error": "No se seleccionó ningún archivo."}), 400
+
+    archivo_info = _guardar_archivo_adjunto(archivo, radicado)
+    if isinstance(archivo_info, dict) and archivo_info.get("error") == "extensión_no_permitida":
+        return jsonify({
+            "error": f"Extensión no permitida para '{archivo_info['nombre']}'. "
+                     f"Extensiones válidas: {sorted(_extensiones_permitidas())}",
+        }), 400
+
+    # Reemplazar el archivo adjunto.
+    documento["archivo_adjunto"] = archivo_info
+    documento["archivo_validado"] = False
+    documento["estado_actual"] = "Pendiente Validación Documento"
+    documento["observaciones"] = "Esperando validación manual del nuevo archivo adjunto."
+
+    usuario = request.form.get("usuario") or "Sistema"
+    movimiento = registrar_movimiento(
+        documento_id=radicado,
+        accion="Reemplazo de documento adjunto",
+        usuario=usuario,
+        fecha=date.today().strftime("%Y-%m-%d"),
+        hora=datetime.now().strftime("%H:%M"),
+    )
+    documento["historial"].append(movimiento)
+
+    DOCUMENTOS[radicado] = documento
+    _guardar_documentos()
+
+    return redirect(url_for("main.validar_documento", radicado=radicado))
+
+
+@main_bp.route("/descargar-adjunto/<radicado>")
+def descargar_adjunto(radicado):
+    """Descarga el archivo adjunto vinculado a un registro de correspondencia."""
+    documento = DOCUMENTOS.get(radicado)
+    if not documento:
+        return jsonify({"error": f"Documento {radicado} no encontrado."}), 404
+
+    archivo = documento.get("archivo_adjunto")
+    if not archivo:
+        return jsonify({"error": f"El documento {radicado} no tiene archivo adjunto."}), 400
+
+    nombre_archivo = archivo["nombre_archivo"]
+    carpeta = current_app.config["UPLOAD_FOLDER"]
+
+    return send_from_directory(
+        carpeta,
+        nombre_archivo,
+        as_attachment=True,
+        download_name=archivo.get("nombre_original", nombre_archivo),
+    )

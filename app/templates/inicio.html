@@ -8,7 +8,7 @@
 
 <div id="msg-registro"></div>
 
-<form id="form-registro" method="post" action="/registrar">
+<form id="form-registro" method="post" action="/registrar" enctype="multipart/form-data">
   <div class="fila">
     <div class="col">
       <label class="etiqueta">Canal de ingreso <span class="requerido">*</span></label>
@@ -37,6 +37,10 @@
 
   <label class="etiqueta">Texto extraído (OCR) — opcional</label>
   <textarea name="texto_extraido" placeholder="Resultado del OCR del documento (si aplica). El agente de IA usará este texto para sugerir clasificación, prioridad y área."></textarea>
+
+  <label class="etiqueta">Documento adjunto (opcional)</label>
+  <input type="file" name="archivo_adjunto" accept=".pdf,.png,.jpg,.jpeg,.gif,.bmp,.webp,.doc,.docx,.xls,.xlsx,.txt">
+  <p class="nota">Formatos aceptados: PDF, Word, Excel, imágenes (foto, escaneo) y texto. Si no adjunta nada, el registro continúa sin archivo.</p>
 
   <label class="etiqueta">Usuario que registra</label>
   <input type="text" name="usuario" value="Unidad Secretarial">
@@ -90,7 +94,10 @@
         .then(function (data) {
           btn.disabled = false;
           btn.textContent = 'Registrar documento';
-          if (data.mensaje) {
+          if (data.redirect) {
+            // Hay archivo adjunto: redirigir a validación manual
+            window.location.href = data.redirect;
+          } else if (data.mensaje) {
             msg.innerHTML =
               '<div class="msg-ok"><strong>Registrado correctamente.</strong><br>' +
               'Radicado: <strong>' + data.radicado + '</strong><br>' +
