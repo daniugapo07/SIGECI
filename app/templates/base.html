@@ -240,9 +240,7 @@
 <body>
   <header class="app-header">
     <div class="header-contenedor">
-      <!-- Espacio para el logotipo oficial de ADEP -->
-      <!-- Cuando tengas el archivo, reemplaza esto por: <img src="/static/logo-adep.png" alt="ADEP" class="logo-adep"> -->
-      <div class="logo-placeholder">LOGO<br>ADEP</div>
+      <img src="{{ url_for('static', filename='img/logo-adep.png') }}" alt="Logotipo ADEP - Asociación de Educadores Pensionados" class="logo-adep">
       <div>
         <h1 class="app-brand">SIGECI</h1>
         <p class="app-sub">Sistema Inteligente de Gestión de Correspondencia Institucional (ADEP)</p>
