@@ -1,5 +1,7 @@
 """Controlador principal de rutas de SIGECI."""
 
+import hashlib
+import hmac
 import json
 import os
 from datetime import date, datetime, timedelta
@@ -48,6 +50,19 @@ main_bp = Blueprint("main", __name__)
 _RUTAS_LIBRES = {"main.login", "main.salir", "main.health"}
 
 
+def login_requerido(f):
+    """Decorador que exige sesión activa. Si no hay sesión, redirige a /login."""
+    from functools import wraps
+
+    @wraps(f)
+    def envoltura(*args, **kwargs):
+        if not session.get("usuario"):
+            return redirect(url_for("main.login"))
+        return f(*args, **kwargs)
+
+    return envoltura
+
+
 @main_bp.before_request
 def _requerir_autenticacion():
     """Regla de acceso: todas las rutas exigen sesión activa, excepto login, salir y health."""
@@ -64,8 +79,14 @@ def login():
         clave = (request.form.get("clave") or "").strip()
         usuario_valido = os.environ.get("APP_USUARIO", "")
         clave_valida = os.environ.get("APP_CLAVE", "")
-        if usuario == usuario_valido and clave == clave_valida:
+
+        # Comparación segura contra ataques de timing
+        usuario_ok = hmac.compare_digest(usuario, usuario_valido)
+        clave_ok = hmac.compare_digest(clave, clave_valido)
+
+        if usuario_ok and clave_ok:
             session["usuario"] = usuario
+            session.permanent = True  # Expiración según PERMANENT_SESSION_LIFETIME (8h)
             return redirect(url_for("main.index"))
         error = "Usuario o contraseña incorrectos"
     return render_template("login.html", error=error)

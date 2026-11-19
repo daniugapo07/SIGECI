@@ -5,6 +5,7 @@ según el patrón Application Factory de Flask.
 """
 
 import os
+import sys
 from werkzeug.utils import secure_filename
 
 from flask import Flask, jsonify
@@ -12,6 +13,20 @@ from dotenv import load_dotenv
 
 # Cargar variables de entorno desde el archivo .env (si existe)
 load_dotenv()
+
+
+def _verificar_variables_entorno():
+    """Verifica que las variables de entorno críticas existan al arrancar."""
+    faltantes = []
+    for var in ["APP_USUARIO", "APP_CLAVE", "SECRET_KEY"]:
+        if not os.environ.get(var):
+            faltantes.append(var)
+    if faltantes:
+        print(f"Faltan variables de entorno: {', '.join(faltantes)}")
+        sys.exit(1)
+
+
+_verificar_variables_entorno()
 
 
 def create_app():
@@ -36,10 +51,11 @@ def create_app():
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
 
     app.config.from_mapping(
-        SECRET_KEY=os.environ.get("SECRET_KEY", "dev-cambiar-en-produccion"),
+        SECRET_KEY=os.environ.get("SECRET_KEY"),
         APP_NAME=os.environ.get("APP_NAME", "SIGECI"),
         ENV=os.environ.get("FLASK_ENV", "development"),
         DEBUG=os.environ.get("FLASK_DEBUG", "1") == "1",
+        PERMANENT_SESSION_LIFETIME=8 * 3600,  # 8 horas
         UPLOAD_FOLDER=UPLOAD_FOLDER,
         ALLOWED_EXTENSIONS=ALLOWED_EXTENSIONS,
         MAX_CONTENT_LENGTH=MAX_CONTENT_LENGTH,

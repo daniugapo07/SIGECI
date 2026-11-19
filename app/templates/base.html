@@ -252,6 +252,9 @@
         <li><a href="/registrar">Registrar correspondencia</a></li>
         <li><a href="/resultados">Resultados</a></li>
         <li><a href="/health">Estado del servidor</a></li>
+        {% if session.get("usuario") %}
+        <li><a href="/salir" class="btn-primario">Salir</a></li>
+        {% endif %}
       </ul>
     </nav>
   </header>
