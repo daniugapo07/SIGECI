@@ -4,7 +4,7 @@
 
 {% block content %}
 <style>
-  /* ===== DETALLE: ficha digital, constancia y trazabilidad ===== */
+  /* ===== DETALLE: ficha digital, constancia y trazabilidad (Identidad ADEP) ===== */
   .detalle-header {
     display: flex;
     flex-wrap: wrap;
@@ -29,11 +29,11 @@
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
-  .estado--Recibido { background: #e3f2fd; color: #0d47a1; }
-  .estado--Asignado { background: #e8f5e9; color: #1b5e20; }
-  .estado--En_Tramite { background: #fff3e0; color: #e65100; }
-  .estado--Cerrado { background: #f3e5f5; color: #4a148c; }
-  .estado--Pendiente_de_Confirmación { background: #ffebee; color: #b71c1c; }
+  .estado--Recibido { background: #e5f2e9; color: #087C45; }
+  .estado--Asignado { background: #e5f2e9; color: #087C45; }
+  .estado--En_Tramite { background: #fff3e0; color: #D92332; }
+  .estado--Cerrado { background: #e5f2e9; color: #087C45; }
+  .estado--Pendiente_de_Confirmación { background: #fdecea; color: #D92332; }
 
   .seccion {
     margin-top: 26px;
@@ -41,6 +41,9 @@
   .seccion h2 {
     font-size: 1.2rem;
     margin-bottom: 12px;
+    color: var(--color-primario);
+    border-bottom: 2px solid var(--color-borde-claro);
+    padding-bottom: 8px;
   }
 
   .ficha-digital {
@@ -50,7 +53,7 @@
   }
   .campo-dato {
     padding: 10px 12px;
-    background: var(--color-fondo);
+    background: var(--color-blanco);
     border: 1px solid var(--color-borde-claro);
     border-radius: var(--radius);
   }
@@ -58,7 +61,7 @@
     font-size: 0.78rem;
     text-transform: uppercase;
     letter-spacing: 0.4px;
-    color: var(--color-texto-suave);
+    color: var(--color-primario);
     margin: 0 0 4px;
     font-weight: 700;
   }
@@ -68,13 +71,13 @@
     color: var(--color-texto);
     word-break: break-word;
   }
-  .valor--urgente { color: #b00020; font-weight: 800; }
-  .valor--alta { color: #e65100; font-weight: 700; }
-  .valor--media { color: #f9a825; font-weight: 600; }
-  .valor--baja { color: #1b5e20; font-weight: 600; }
+  .valor--urgente { color: #D92332; font-weight: 800; }
+  .valor--alta { color: #D92332; font-weight: 700; }
+  .valor--media { color: #087C45; font-weight: 600; }
+  .valor--baja { color: #087C45; font-weight: 600; }
 
   .constancia {
-    background: #fffbf0;
+    background: #E5F2E9;
     border: 1px solid var(--color-borde-claro);
     border-left: 5px solid var(--color-acento);
     border-radius: var(--radius);
@@ -90,7 +93,7 @@
   .constancia .etiqueta-constancia {
     display: block;
     font-size: 0.8rem;
-    color: var(--color-texto-suave);
+    color: var(--color-primario);
     text-transform: uppercase;
     letter-spacing: 0.3px;
     margin-bottom: 4px;
@@ -127,7 +130,7 @@
     vertical-align: middle;
   }
   table.trazabilidad tr:last-child td { border-bottom: none; }
-  table.trazabilidad tr:hover { background: #f4f6f8; }
+  table.trazabilidad tr:hover { background: var(--color-fondo-secundario); }
   td.vacía { text-align: center; color: var(--color-texto-suave); padding: 24px; }
 
   .acciones {
